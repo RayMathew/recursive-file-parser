@@ -16,45 +16,56 @@ fs.writeFile(__dirname + '/report.csv', 'File Path,Imports\n', function(err) {
     }
 });
 
-
+let filePaths = [];
 
 readdirp(__dirname + '/ConfigurationApplication/src/js', {
         fileFilter: ['*.js', '!loader.js', '!*-strings.js'],
         alwaysStat: true
     })
     .on('data', (entry) => {
-        const {path, stats: {size}} = entry;
-        fs.readFile(entry.fullPath, {encoding: 'utf-8'}, function(err, data) {
+        const {fullPath} = entry;
+        filePaths.push(fullPath);
+    })
+    // Optionally call stream.destroy() in `warn()` in order to abort and cause 'close' to be emitted
+    .on('warn', error => console.error('non-fatal error', error))
+    .on('error', error => console.error('fatal error', error))
+    .on('end', () => {
+        scanSelectedFiles();
+    });
+
+const scanSelectedFiles = () => {
+    filePaths.forEach(filePath => {
+        fs.readFile(filePath, {encoding: 'utf-8'}, function(err, data) {
             if (!err) {
                 var imports = data.toString().match(/define\(\[.*\]/);
                 if (imports){
-                    console.log('single line', entry.fullPath.split('src')[1]);
+                    console.log('single line', filePath.split('src')[1]);
                     console.log(imports[0]);
                     var sanitizedImports = sanitizeImports(imports[0]);
                     addToReport({
-                        file: entry.fullPath.split('src')[1],
+                        file: filePath.split('src')[1],
                         importArray: sanitizedImports
                     });
                 }
                 else {
                     imports = data.toString().match(/define\(\[[\s\S]*\n\],/);
                     if (imports){
-                        console.log('multiple lines with only bracket in last line', entry.fullPath.split('src')[1]);
+                        console.log('multiple lines with only bracket in last line', filePath.split('src')[1]);
                         console.log(imports[0]);
                         var sanitizedImports = sanitizeImports(imports[0]);
                         addToReport({
-                            file: entry.fullPath.split('src')[1],
+                            file: filePath.split('src')[1],
                             importArray: sanitizedImports
                         });
 
                     }else {
                         imports = data.toString().match(/define\(\[[\s\S]*\'],/);
                         if (imports){
-                            console.log('multiple lines end same line as bracket, and single quote', entry.fullPath.split('src')[1]);
+                            console.log('multiple lines end same line as bracket, and single quote', filePath.split('src')[1]);
                             console.log(imports[0]);
                             var sanitizedImports = sanitizeImports(imports[0]);
                             addToReport({
-                                file: entry.fullPath.split('src')[1],
+                                file: filePath.split('src')[1],
                                 importArray: sanitizedImports
                             });
 
@@ -62,33 +73,33 @@ readdirp(__dirname + '/ConfigurationApplication/src/js', {
                         else {
                             imports = data.toString().match(/define\(\[[\s\S]*[\s].*('|")\],/);
                             if (imports){
-                                console.log('multiple lines end same line as bracket', entry.fullPath.split('src')[1]);
+                                console.log('multiple lines end same line as bracket', filePath.split('src')[1]);
                                 console.log(imports[0]);
                                 var sanitizedImports = sanitizeImports(imports[0]);
                                 addToReport({
-                                    file: entry.fullPath.split('src')[1],
+                                    file: filePath.split('src')[1],
                                     importArray: sanitizedImports
                                 });
                             }
                             else {
                                 imports = data.toString().match(/define\(\[[\s\S]*[\s]\],/);
                                 if (imports){
-                                    console.log('multiple lines', entry.fullPath.split('src')[1]);
+                                    console.log('multiple lines', filePath.split('src')[1]);
                                     console.log(imports[0]);
                                     var sanitizedImports = sanitizeImports(imports[0]);
                                     addToReport({
-                                        file: entry.fullPath.split('src')[1],
+                                        file: filePath.split('src')[1],
                                         importArray: sanitizedImports
                                     });
                                 }
                                 else {
                                     imports = data.toString().match(/define\([\s\S]*[\s].*('|")\],/);
                                     if (imports){
-                                        console.log('multiple lines end same line as bracket, define alone', entry.fullPath.split('src')[1]);
+                                        console.log('multiple lines end same line as bracket, define alone', filePath.split('src')[1]);
                                         console.log(imports[0]);
                                         var sanitizedImports = sanitizeImports(imports[0]);
                                         addToReport({
-                                            file: entry.fullPath.split('src')[1],
+                                            file: filePath.split('src')[1],
                                             importArray: sanitizedImports
                                         });
                                     }
@@ -101,14 +112,9 @@ readdirp(__dirname + '/ConfigurationApplication/src/js', {
                 console.log(err);
             }
         });
-    })
-    // Optionally call stream.destroy() in `warn()` in order to abort and cause 'close' to be emitted
-    .on('warn', error => console.error('non-fatal error', error))
-    .on('error', error => console.error('fatal error', error))
-    .on('end', () => {
-        console.log("done");
     });
 
+};
 
 function sanitizeImports(defineBlock) {
     var arrayOfImports = defineBlock.split(',');
@@ -151,16 +157,16 @@ function addToReport(dataObject){
     }
 
     fs.writeFileSync(__dirname + '/report.csv', report, 'utf-8');
-	
+
 	//cleanup work - replace all 'undefined' with '(no imports)'
 	report = fs.readFileSync(__dirname + '/report.csv', 'utf-8');
 	report = report.replace(/undefined/, "(no imports)");
-	
+
 	//cleanup work - replace 'define([' with '(no imports)'
 	report = report.replace(/define\(\[\n/, "(no imports)\n");
-	
+
 	//cleanup work - replace 'define([xyz' with 'xyz'
 	report = report.replace(/define\(\[/, "");
-	
+
 	fs.writeFileSync(__dirname + '/report.csv', report, 'utf-8');
 }
